@@ -1,16 +1,207 @@
 // 安装收入记账APP JavaScript
 
+// 当前登录用户
+let currentUser = null;
+
+// 用户认证管理
+
+// 获取用户列表
+function getUsers() {
+    const usersJson = localStorage.getItem('users');
+    return usersJson ? JSON.parse(usersJson) : {};
+}
+
+// 保存用户列表
+function saveUsers(users) {
+    localStorage.setItem('users', JSON.stringify(users));
+}
+
+
+
+// 检查用户是否存在
+function userExists(username) {
+    const users = getUsers();
+    return users.hasOwnProperty(username);
+}
+
+// 验证密码
+function validatePassword(username, password) {
+    const users = getUsers();
+    return users[username] === password;
+}
+
+// 添加新用户
+function addUser(username, password) {
+    const users = getUsers();
+    users[username] = password;
+    saveUsers(users);
+    
+    // 初始化新用户的数据结构
+    initializeUserData(username);
+}
+
+// 初始化用户数据
+function initializeUserData(username) {
+    const userData = {
+        incomeRecords: [],
+        expenseRecords: [],
+        clientPayments: {},
+        paymentLogs: [],
+        systemPassword: '123456'
+    };
+    localStorage.setItem(`userData_${username}`, JSON.stringify(userData));
+}
+
+// 获取用户数据
+function getUserData() {
+    if (!currentUser) return null;
+    
+    const userDataJson = localStorage.getItem(`userData_${currentUser}`);
+    if (!userDataJson) {
+        initializeUserData(currentUser);
+        return getUserData();
+    }
+    
+    return JSON.parse(userDataJson);
+}
+
+// 保存用户数据
+function saveUserData(userData) {
+    if (!currentUser) return;
+    localStorage.setItem(`userData_${currentUser}`, JSON.stringify(userData));
+}
+
+// 获取保存的登录信息
+function getSavedLoginInfo() {
+    const savedInfoJson = localStorage.getItem('savedLoginInfo');
+    return savedInfoJson ? JSON.parse(savedInfoJson) : null;
+}
+
+// 保存登录信息
+function saveLoginInfo(username, password) {
+    localStorage.setItem('savedLoginInfo', JSON.stringify({ username, password }));
+}
+
+// 清除保存的登录信息
+function clearSavedLoginInfo() {
+    localStorage.removeItem('savedLoginInfo');
+}
+
 // 初始化应用
 document.addEventListener('DOMContentLoaded', function() {
+    // 检查是否已保存登录信息
+    const savedLoginInfo = getSavedLoginInfo();
+    if (savedLoginInfo) {
+        document.getElementById('username').value = savedLoginInfo.username;
+        document.getElementById('loginPassword').value = savedLoginInfo.password;
+        document.getElementById('rememberMe').checked = true;
+    }
+    
+    // 绑定登录和注册事件
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    document.getElementById('registerForm').addEventListener('submit', handleRegister);
+});
+
+// 登录处理
+function handleLogin(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const rememberMe = document.getElementById('rememberMe').checked;
+    
+    // 验证用户
+    if (!userExists(username)) {
+        showNotification('账号不存在，请先注册');
+        return;
+    }
+    
+    if (!validatePassword(username, password)) {
+        showNotification('密码错误，请重新输入');
+        return;
+    }
+    
+    // 设置当前用户
+    currentUser = username;
+    
+    // 保存登录信息
+    if (rememberMe) {
+        saveLoginInfo(username, password);
+    } else {
+        clearSavedLoginInfo();
+    }
+    
+    // 显示主应用
+    document.getElementById('authContainer').style.display = 'none';
+    document.getElementById('appContainer').style.display = 'block';
+    
+    // 初始化应用
+    initializeApp();
+    
+    showNotification('登录成功！');
+}
+
+// 注册处理
+function handleRegister(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('registerUsername').value.trim();
+    const password = document.getElementById('registerPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    // 验证输入
+    if (userExists(username)) {
+        showNotification('账号已存在，请选择其他账号');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showNotification('密码长度不能少于6位');
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        showNotification('两次输入的密码不一致');
+        return;
+    }
+    
+    // 添加新用户
+    addUser(username, password);
+    
+    // 切换到登录表单
+    switchToLogin();
+    
+    // 填充用户名
+    document.getElementById('username').value = username;
+    
+    showNotification('注册成功，请登录！');
+}
+
+// 切换到登录表单
+function switchToLogin() {
+    document.getElementById('registerFormContainer').style.display = 'none';
+    document.getElementById('loginFormContainer').style.display = 'block';
+}
+
+// 切换到注册表单
+function switchToRegister() {
+    document.getElementById('loginFormContainer').style.display = 'none';
+    document.getElementById('registerFormContainer').style.display = 'block';
+}
+
+// 初始化应用
+function initializeApp() {
     // 设置默认日期为今天
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('date').value = today;
     document.getElementById('expenseDate').value = today;
     
-    // 默认隐藏支出相关部分
+    // 默认隐藏相关部分
+    toggleIncomeForm(true);
     toggleExpenseForm(true);
-    toggleMonthlyExpenses(true);
+    toggleExpenseSummary(true);
     toggleExpensesList(true);
+    togglePaymentLogs(true);
     
     // 加载所有数据
     loadAllData();
@@ -20,7 +211,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('expenseForm').addEventListener('submit', addExpenseRecord);
     document.getElementById('search').addEventListener('input', searchIncomeRecords);
     document.getElementById('clearAll').addEventListener('click', clearAllRecords);
-    document.getElementById('addRow').addEventListener('click', addTableRow);
+    document.getElementById('addStandardRow').addEventListener('click', function() { addTableRow(false); });
+    document.getElementById('addManualAreaRow').addEventListener('click', function() { addTableRow(true); });
     document.getElementById('changePassword').addEventListener('click', showChangePasswordModal);
     
     // 为初始行绑定事件
@@ -28,7 +220,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 计算初始总计
     calculateTotal();
-});
+}
 
 // 显示修改密码模态框
 function showChangePasswordModal() {
@@ -80,27 +272,26 @@ function showChangePasswordModal() {
 
 // 系统密码管理
 function getSystemPassword() {
-    let password = localStorage.getItem('systemPassword');
-    // 首次使用，设置默认密码123456
-    if (!password) {
-        password = '123456';
-        localStorage.setItem('systemPassword', password);
-    }
-    return password;
+    const userData = getUserData();
+    return userData.systemPassword;
 }
 
 function setSystemPassword(newPassword) {
-    localStorage.setItem('systemPassword', newPassword);
+    const userData = getUserData();
+    userData.systemPassword = newPassword;
+    saveUserData(userData);
 }
 
 // 客户结款金额管理
 function getClientPayments() {
-    const paymentsJson = localStorage.getItem('clientPayments');
-    return paymentsJson ? JSON.parse(paymentsJson) : {};
+    const userData = getUserData();
+    return userData.clientPayments || {};
 }
 
 function saveClientPayments(payments) {
-    localStorage.setItem('clientPayments', JSON.stringify(payments));
+    const userData = getUserData();
+    userData.clientPayments = payments;
+    saveUserData(userData);
 }
 
 function getClientPayment(client) {
@@ -109,31 +300,76 @@ function getClientPayment(client) {
 }
 
 function setClientPayment(client, amount) {
-    const payments = getClientPayments();
-    payments[client] = amount;
-    saveClientPayments(payments);
+    // 直接获取用户数据并更新
+    const userData = getUserData();
+    
+    // 记录旧金额
+    const oldAmount = parseFloat(userData.clientPayments[client] || 0);
+    
+    // 确保clientPayments对象存在
+    if (!userData.clientPayments) {
+        userData.clientPayments = {};
+    }
+    
+    // 更新结款金额
+    userData.clientPayments[client] = amount;
+    
+    // 记录变动日志
+    const logEntry = {
+        id: Date.now().toString(),
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString(),
+        client: client,
+        oldAmount: oldAmount,
+        newAmount: amount,
+        change: amount - oldAmount
+    };
+    
+    // 添加到日志
+    if (!userData.paymentLogs) {
+        userData.paymentLogs = [];
+    }
+    userData.paymentLogs.unshift(logEntry);
+    
+    // 保存所有数据
+    saveUserData(userData);
+    
+    // 直接重新计算并更新页面
+    updateAnnualSummary();
+    updateBrandSummary();
+    updateClientSummary(getIncomeRecords());
+}
+
+// 获取结款变动日志
+function getPaymentLogs() {
+    const userData = getUserData();
+    return userData.paymentLogs || [];
 }
 
 // 收入记录管理
 function getIncomeRecords() {
-    const recordsJson = localStorage.getItem('incomeRecords');
-    return recordsJson ? JSON.parse(recordsJson) : [];
+    const userData = getUserData();
+    return userData.incomeRecords || [];
 }
 
 // 保存收入记录
 function saveIncomeRecords(records) {
-    localStorage.setItem('incomeRecords', JSON.stringify(records));
+    const userData = getUserData();
+    userData.incomeRecords = records;
+    saveUserData(userData);
 }
 
 // 获取支出记录
 function getExpenseRecords() {
-    const recordsJson = localStorage.getItem('expenseRecords');
-    return recordsJson ? JSON.parse(recordsJson) : [];
+    const userData = getUserData();
+    return userData.expenseRecords || [];
 }
 
 // 保存支出记录
 function saveExpenseRecords(records) {
-    localStorage.setItem('expenseRecords', JSON.stringify(records));
+    const userData = getUserData();
+    userData.expenseRecords = records;
+    saveUserData(userData);
 }
 
 // 加载所有数据
@@ -143,30 +379,46 @@ function loadAllData() {
     displayIncomeRecords(incomeRecords);
     updateStats(incomeRecords);
     updateClientSummary(incomeRecords);
+    updateAnnualSummary();
     
     // 加载支出记录
     const expenseRecords = getExpenseRecords();
     displayExpenseRecords(expenseRecords);
-    updateMonthlyExpenses(expenseRecords);
+    updateExpenseSummary();
 }
 
 // 表格行管理
 
 // 添加表格行
-function addTableRow() {
+function addTableRow(isManualArea = false) {
     const tbody = document.querySelector('#itemsTable tbody');
     const newRow = document.createElement('tr');
     newRow.className = 'item-row';
+    newRow.dataset.type = isManualArea ? 'manual' : 'standard';
     
-    newRow.innerHTML = `
-        <td><input type="text" class="item-name" placeholder="请输入项目名称" required></td>
-        <td><input type="number" class="length" step="1" placeholder="0" min="0" required></td>
-        <td><input type="number" class="height" step="1" placeholder="0" min="0" required></td>
-        <td><input type="number" class="area" step="0.001" placeholder="0.000" readonly></td>
-        <td><input type="number" class="unit-price" step="0.01" placeholder="0.00" min="0" required></td>
-        <td><input type="number" class="subtotal" step="0.01" placeholder="0.00" readonly></td>
-        <td><button type="button" class="btn btn-small btn-delete-row">删除</button></td>
-    `;
+    if (isManualArea) {
+        // 手动面积行：长高禁止输入，面积手动输入
+        newRow.innerHTML = `
+            <td><input type="text" class="item-name" placeholder="请输入项目名称" required></td>
+            <td><input type="number" class="length" step="1" placeholder="0" min="0" disabled></td>
+            <td><input type="number" class="height" step="1" placeholder="0" min="0" disabled></td>
+            <td><input type="number" class="area" step="0.001" placeholder="0.000" min="0" required></td>
+            <td><input type="number" class="unit-price" step="0.01" placeholder="0.00" min="0" required></td>
+            <td><input type="number" class="subtotal" step="0.01" placeholder="0.00" readonly></td>
+            <td><button type="button" class="btn btn-small btn-delete-row">删除</button></td>
+        `;
+    } else {
+        // 标准行：带长高，自动计算面积
+        newRow.innerHTML = `
+            <td><input type="text" class="item-name" placeholder="请输入项目名称" required></td>
+            <td><input type="number" class="length" step="1" placeholder="0" min="0" required></td>
+            <td><input type="number" class="height" step="1" placeholder="0" min="0" required></td>
+            <td><input type="number" class="area" step="0.001" placeholder="0.000" readonly></td>
+            <td><input type="number" class="unit-price" step="0.01" placeholder="0.00" min="0" required></td>
+            <td><input type="number" class="subtotal" step="0.01" placeholder="0.00" readonly></td>
+            <td><button type="button" class="btn btn-small btn-delete-row">删除</button></td>
+        `;
+    }
     
     tbody.appendChild(newRow);
     bindRowEvents(newRow);
@@ -188,14 +440,32 @@ function bindRowEvents(row) {
         }
     });
     
-    // 为输入框绑定事件，实时计算面积和小计
-    const inputs = row.querySelectorAll('.length, .height, .unit-price');
-    inputs.forEach(input => {
-        input.addEventListener('input', function() {
-            calculateArea(row);
+    const rowType = row.dataset.type;
+    
+    if (rowType === 'standard') {
+        // 标准行：监听长高输入事件，自动计算面积
+        const lengthHeightInputs = row.querySelectorAll('.length, .height');
+        lengthHeightInputs.forEach(input => {
+            input.addEventListener('input', function() {
+                calculateArea(row);
+                calculateSubtotal(row);
+                calculateTotal();
+            });
+        });
+    } else {
+        // 手动面积行：监听面积输入事件，重新计算小计
+        const areaInput = row.querySelector('.area');
+        areaInput.addEventListener('input', function() {
             calculateSubtotal(row);
             calculateTotal();
         });
+    }
+    
+    // 监听单价输入事件，重新计算小计
+    const unitPriceInput = row.querySelector('.unit-price');
+    unitPriceInput.addEventListener('input', function() {
+        calculateSubtotal(row);
+        calculateTotal();
     });
 }
 
@@ -256,26 +526,53 @@ function addIncomeRecord(e) {
     
     for (const row of rows) {
         const itemName = row.querySelector('.item-name').value.trim();
-        const length = parseFloat(row.querySelector('.length').value);
-        const height = parseFloat(row.querySelector('.height').value);
-        const area = parseFloat(row.querySelector('.area').value);
         const unitPrice = parseFloat(row.querySelector('.unit-price').value);
         const subtotal = parseFloat(row.querySelector('.subtotal').value);
+        const rowType = row.dataset.type;
         
         // 验证必填项
-        if (!itemName || isNaN(length) || isNaN(height) || isNaN(unitPrice)) {
-            showNotification('请填写完整的项目信息');
+        if (!itemName || isNaN(unitPrice) || unitPrice <= 0) {
+            showNotification('请填写完整的项目信息，所有项目必须有名称和有效的单价');
             return;
         }
         
-        items.push({
-            name: itemName,
-            length,
-            height,
-            area,
-            unitPrice,
-            subtotal
-        });
+        if (rowType === 'standard') {
+            // 标准行：验证长高
+            const length = parseFloat(row.querySelector('.length').value);
+            const height = parseFloat(row.querySelector('.height').value);
+            const area = parseFloat(row.querySelector('.area').value);
+            
+            if (isNaN(length) || length <= 0 || isNaN(height) || height <= 0) {
+                showNotification('请填写完整的项目信息，标准行必须有有效的长和高');
+                return;
+            }
+            
+            items.push({
+                name: itemName,
+                length,
+                height,
+                area,
+                unitPrice,
+                subtotal
+            });
+        } else {
+            // 手动面积行：验证面积
+            const area = parseFloat(row.querySelector('.area').value);
+            
+            if (isNaN(area) || area <= 0) {
+                showNotification('请填写完整的项目信息，手动面积行必须有有效的面积');
+                return;
+            }
+            
+            items.push({
+                name: itemName,
+                length: 0,
+                height: 0,
+                area,
+                unitPrice,
+                subtotal
+            });
+        }
     }
     
     // 计算总计
@@ -326,9 +623,10 @@ function resetIncomeForm() {
     // 清空所有行
     rows.forEach(row => row.remove());
     
-    // 添加新的初始行
+    // 添加新的初始行（标准行）
     const newRow = document.createElement('tr');
     newRow.className = 'item-row';
+    newRow.dataset.type = 'standard';
     newRow.innerHTML = `
         <td><input type="text" class="item-name" placeholder="请输入项目名称" required></td>
         <td><input type="number" class="length" step="1" placeholder="0" min="0" required></td>
@@ -428,6 +726,72 @@ function searchIncomeRecords() {
 
 // 编辑收入记录
 function editIncomeRecord(id) {
+    // 显示密码输入框
+    const modalOverlay = document.createElement('div');
+    modalOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1001;
+    `;
+    
+    // 创建模态框
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        width: 90%;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    `;
+    
+    // 模态框内容
+    modal.innerHTML = `
+        <h3 style="margin-top: 0; margin-bottom: 20px;">编辑确认</h3>
+        <div class="form-group" style="margin-bottom: 15px;">
+            <label for="editPassword" style="display: block; margin-bottom: 5px; font-weight: bold;">请输入密码:</label>
+            <input type="password" id="editPassword" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 16px;">
+        </div>
+        <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+            <button id="modalCancel" class="btn btn-small" style="background-color: #95a5a6; color: white; margin-right: auto;">取消</button>
+            <button id="modalConfirm" class="btn btn-small">确认</button>
+        </div>
+    `;
+    
+    // 添加到页面
+    modalOverlay.appendChild(modal);
+    document.body.appendChild(modalOverlay);
+    
+    // 绑定事件
+    modalOverlay.addEventListener('click', function(e) {
+        if (e.target === modalOverlay) {
+            modalOverlay.remove();
+        }
+    });
+    
+    modal.querySelector('#modalCancel').addEventListener('click', function() {
+        modalOverlay.remove();
+    });
+    
+    modal.querySelector('#modalConfirm').addEventListener('click', function() {
+        const password = document.getElementById('editPassword').value;
+        
+        // 验证密码
+        if (password !== '123456') {
+            showNotification('密码错误，无法编辑记录');
+            modalOverlay.remove();
+            return;
+        }
+        
+        // 执行编辑操作
+        (function() {
     const records = getIncomeRecords();
     const record = records.find(r => r.id === id);
     
@@ -449,15 +813,33 @@ function editIncomeRecord(id) {
         const newRow = document.createElement('tr');
         newRow.className = 'item-row';
         
-        newRow.innerHTML = `
-            <td><input type="text" class="item-name" placeholder="请输入项目名称" required value="${item.name}"></td>
-            <td><input type="number" class="length" step="1" placeholder="0" min="0" required value="${item.length}"></td>
-            <td><input type="number" class="height" step="1" placeholder="0" min="0" required value="${item.height}"></td>
-            <td><input type="number" class="area" step="0.001" placeholder="0.000" readonly value="${item.area.toFixed(3)}"></td>
-            <td><input type="number" class="unit-price" step="0.01" placeholder="0.00" min="0" required value="${item.unitPrice}"></td>
-            <td><input type="number" class="subtotal" step="0.01" placeholder="0.00" readonly value="${item.subtotal.toFixed(2)}"></td>
-            <td><button type="button" class="btn btn-small btn-delete-row">删除</button></td>
-        `;
+        // 判断项目行类型：如果length和height都为0，则视为手动面积行
+        const isManualArea = item.length === 0 && item.height === 0;
+        newRow.dataset.type = isManualArea ? 'manual' : 'standard';
+        
+        if (isManualArea) {
+            // 手动面积行：长高禁止输入
+            newRow.innerHTML = `
+                <td><input type="text" class="item-name" placeholder="请输入项目名称" required value="${item.name}"></td>
+                <td><input type="number" class="length" step="1" placeholder="0" min="0" disabled value="${item.length}"></td>
+                <td><input type="number" class="height" step="1" placeholder="0" min="0" disabled value="${item.height}"></td>
+                <td><input type="number" class="area" step="0.001" placeholder="0.000" min="0" required value="${item.area.toFixed(3)}"></td>
+                <td><input type="number" class="unit-price" step="0.01" placeholder="0.00" min="0" required value="${item.unitPrice}"></td>
+                <td><input type="number" class="subtotal" step="0.01" placeholder="0.00" readonly value="${item.subtotal.toFixed(2)}"></td>
+                <td><button type="button" class="btn btn-small btn-delete-row">删除</button></td>
+            `;
+        } else {
+            // 标准行
+            newRow.innerHTML = `
+                <td><input type="text" class="item-name" placeholder="请输入项目名称" required value="${item.name}"></td>
+                <td><input type="number" class="length" step="1" placeholder="0" min="0" required value="${item.length}"></td>
+                <td><input type="number" class="height" step="1" placeholder="0" min="0" required value="${item.height}"></td>
+                <td><input type="number" class="area" step="0.001" placeholder="0.000" readonly value="${item.area.toFixed(3)}"></td>
+                <td><input type="number" class="unit-price" step="0.01" placeholder="0.00" min="0" required value="${item.unitPrice}"></td>
+                <td><input type="number" class="subtotal" step="0.01" placeholder="0.00" readonly value="${item.subtotal.toFixed(2)}"></td>
+                <td><button type="button" class="btn btn-small btn-delete-row">删除</button></td>
+            `;
+        }
         
         tbody.appendChild(newRow);
         bindRowEvents(newRow);
@@ -478,16 +860,38 @@ function editIncomeRecord(id) {
     
     // 显示编辑提示
     showNotification('请修改记录内容后重新提交');
+    
+    // 关闭模态框
+    modalOverlay.remove();
+    })();
+    });
 }
 
 // 删除收入记录
 function deleteIncomeRecord(id) {
     if (confirm('确定要删除这条收入记录吗？')) {
-        const records = getIncomeRecords();
-        const updatedRecords = records.filter(record => record.id !== id);
-        saveIncomeRecords(updatedRecords);
-        loadAllData();
-        showNotification('收入记录已删除');
+        // 显示密码输入框
+        showModal('删除确认', `
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="deletePassword" style="display: block; margin-bottom: 5px; font-weight: bold;">请输入密码:</label>
+                <input type="password" id="deletePassword" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 16px;">
+            </div>
+        `, function() {
+            const password = document.getElementById('deletePassword').value;
+            
+            // 验证密码
+            if (password !== '123456') {
+                showNotification('密码错误，无法删除记录');
+                return;
+            }
+            
+            // 执行删除操作
+            const records = getIncomeRecords();
+            const updatedRecords = records.filter(record => record.id !== id);
+            saveIncomeRecords(updatedRecords);
+            loadAllData();
+            showNotification('收入记录已删除');
+        });
     }
 }
 
@@ -584,6 +988,370 @@ function deleteExpenseRecord(id) {
 
 // 统计和汇总
 
+// 更新年度总计
+function updateAnnualSummary() {
+    const records = getIncomeRecords();
+    const currentYear = new Date().getFullYear();
+    
+    // 筛选今年的记录
+    const thisYearRecords = records.filter(record => {
+        const recordYear = new Date(record.date).getFullYear();
+        return recordYear === currentYear;
+    });
+    
+    // 计算年度总计
+    const annualTotal = thisYearRecords.reduce((sum, record) => sum + record.totalAmount, 0);
+    
+    // 计算年度已结款和未结款
+    const clientPayments = getClientPayments();
+    let annualPaid = 0;
+    
+    // 按客户分组计算总计
+    const clientTotals = {};
+    thisYearRecords.forEach(record => {
+        if (!clientTotals[record.client]) {
+            clientTotals[record.client] = 0;
+        }
+        clientTotals[record.client] += record.totalAmount;
+    });
+    
+    // 计算已结款金额
+    Object.keys(clientTotals).forEach(client => {
+        const payment = parseFloat(clientPayments[client] || 0);
+        // 已结款金额不能超过该客户的总金额
+        annualPaid += Math.min(payment, clientTotals[client]);
+    });
+    
+    const annualUnpaid = annualTotal - annualPaid;
+    
+    // 更新显示
+    document.getElementById('annualTotal').textContent = `¥${annualTotal.toFixed(2)}`;
+    document.getElementById('annualUnpaid').textContent = `¥${annualUnpaid.toFixed(2)}`;
+    document.getElementById('annualPaid').textContent = `¥${annualPaid.toFixed(2)}`;
+    
+    // 设置点击事件，进入品牌汇总界面
+    document.getElementById('annualSummaryTitle').onclick = function() {
+        showBrandSummary();
+    };
+    
+    // 设置鼠标悬停效果
+    document.getElementById('annualSummaryTitle').style.cursor = 'pointer';
+    document.getElementById('annualSummaryTitle').style.color = '#3498db';
+}
+
+// 显示年度汇总
+function showAnnualSummary() {
+    document.getElementById('annualSummaryTitle').style.display = 'block';
+    document.getElementById('brandSummarySection').style.display = 'none';
+    document.getElementById('storeDetailSection').style.display = 'none';
+    document.getElementById('clientSummarySection').style.display = 'block';
+    
+    // 更新年度汇总数据
+    updateAnnualSummary();
+}
+
+// 显示品牌汇总
+function showBrandSummary() {
+    document.getElementById('annualSummaryTitle').style.display = 'none';
+    document.getElementById('brandSummarySection').style.display = 'block';
+    document.getElementById('storeDetailSection').style.display = 'none';
+    document.getElementById('clientSummarySection').style.display = 'none';
+    
+    // 更新品牌汇总数据
+    updateBrandSummary();
+}
+
+// 显示店面明细
+function showStoreDetails(brand) {
+    document.getElementById('annualSummaryTitle').style.display = 'none';
+    document.getElementById('brandSummarySection').style.display = 'none';
+    document.getElementById('storeDetailSection').style.display = 'block';
+    document.getElementById('clientSummarySection').style.display = 'none';
+    
+    // 设置标题
+    document.getElementById('storeDetailTitle').textContent = `${brand} 明细`;
+    
+    // 更新店面明细数据
+    updateStoreDetails(brand);
+}
+
+// 更新品牌汇总
+function updateBrandSummary() {
+    const records = getIncomeRecords();
+    const brandSummary = document.getElementById('brandSummary');
+    const currentYear = new Date().getFullYear();
+    
+    // 筛选今年的记录
+    const thisYearRecords = records.filter(record => {
+        const recordYear = new Date(record.date).getFullYear();
+        return recordYear === currentYear;
+    });
+    
+    // 按品牌分组统计
+    const brandTotals = {};
+    thisYearRecords.forEach(record => {
+        if (!brandTotals[record.client]) {
+            brandTotals[record.client] = {
+                totalAmount: 0,
+                records: []
+            };
+        }
+        brandTotals[record.client].totalAmount += record.totalAmount;
+        brandTotals[record.client].records.push(record);
+    });
+    
+    // 获取客户结款金额
+    const clientPayments = getClientPayments();
+    
+    if (Object.keys(brandTotals).length === 0) {
+        brandSummary.innerHTML = '<div class="empty-state">暂无品牌记录</div>';
+        return;
+    }
+    
+    const summaryHtml = Object.entries(brandTotals).map(([brand, data]) => {
+        const payment = parseFloat(clientPayments[brand] || 0);
+        const balance = data.totalAmount - payment;
+        
+        return `
+        <div class="summary-card" onclick="showStoreDetails('${brand}')" style="cursor: pointer;">
+            <h3>${brand}</h3>
+            <div class="summary-details">
+                <div class="summary-row">
+                    <span class="summary-label">总安装费用:</span>
+                    <span class="summary-value">¥${data.totalAmount.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">未结款金额:</span>
+                    <span class="summary-value balance-positive">¥${balance.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">已结款金额:</span>
+                    <span class="summary-value balance-zero">¥${payment.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">记录数:</span>
+                    <span class="summary-value">${data.records.length}条</span>
+                </div>
+            </div>
+        </div>
+        `;
+    }).join('');
+    
+    brandSummary.innerHTML = summaryHtml;
+}
+
+// 更新店面明细
+function updateStoreDetails(brand) {
+    const records = getIncomeRecords();
+    const storeDetails = document.getElementById('storeDetails');
+    const currentYear = new Date().getFullYear();
+    
+    // 筛选该品牌今年的记录
+    const brandRecords = records.filter(record => {
+        const recordYear = new Date(record.date).getFullYear();
+        return record.client === brand && recordYear === currentYear;
+    });
+    
+    if (brandRecords.length === 0) {
+        storeDetails.innerHTML = '<div class="empty-state">暂无该品牌的记录</div>';
+        return;
+    }
+    
+    // 添加品牌汇总信息
+    let brandTotal = 0;
+    let brandPaid = 0;
+    const clientPayments = getClientPayments();
+    
+    brandRecords.forEach(record => {
+        brandTotal += record.totalAmount;
+    });
+    
+    const payment = parseFloat(clientPayments[brand] || 0);
+    brandPaid = Math.min(payment, brandTotal);
+    const brandUnpaid = brandTotal - brandPaid;
+    
+    const summaryHtml = `
+        <div class="summary-card" style="margin-bottom: 20px;">
+            <h3>${brand} 汇总</h3>
+            <div class="summary-details">
+                <div class="summary-row">
+                    <span class="summary-label">总安装费用:</span>
+                    <span class="summary-value">¥${brandTotal.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">已结款金额:</span>
+                    <span class="summary-value balance-zero">¥${brandPaid.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">未结款金额:</span>
+                    <span class="summary-value balance-positive">¥${brandUnpaid.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">记录数:</span>
+                    <span class="summary-value">${brandRecords.length}条</span>
+                </div>
+            </div>
+            <div class="summary-actions">
+                <button class="btn btn-small btn-edit" onclick="shareBrandDetails('${brand}')">分享品牌明细</button>
+            </div>
+        </div>
+    `;
+    
+    const detailsHtml = brandRecords.map(record => {
+        // 计算该记录的已结款状态
+        const isPaid = payment >= record.totalAmount;
+        
+        return `
+        <div class="record-item" style="border-left-color: ${isPaid ? '#27ae60' : '#e74c3c'};">
+            <div class="record-header">
+                <span class="record-date">${formatDate(record.date)}</span>
+                <span class="record-amount" style="color: ${isPaid ? '#27ae60' : '#e74c3c'};">¥${record.totalAmount.toFixed(2)}</span>
+            </div>
+            <div class="record-info">
+                <strong>地址:</strong> ${record.address} ${record.password ? `<strong>密码:</strong> ${record.password}` : ''}
+            </div>
+            <div class="record-items">
+                <table class="record-items-table">
+                    <thead>
+                        <tr>
+                            <th>项目名称</th>
+                            <th>长(mm)</th>
+                            <th>高(mm)</th>
+                            <th>面积(㎡)</th>
+                            <th>单价(元)</th>
+                            <th>小计(元)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${record.items.map(item => `
+                            <tr>
+                                <td>${item.name}</td>
+                                <td>${item.length}</td>
+                                <td>${item.height}</td>
+                                <td>${item.area.toFixed(3)}</td>
+                                <td>¥${item.unitPrice.toFixed(2)}</td>
+                                <td>¥${item.subtotal.toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            ${record.note ? `<div class="record-note">${record.note}</div>` : ''}
+            <div class="record-actions">
+                <button class="btn btn-small btn-edit" onclick="shareRecord('${record.id}')">分享记录</button>
+            </div>
+        </div>
+        `;
+    }).join('');
+    
+    storeDetails.innerHTML = summaryHtml + detailsHtml;
+}
+
+// 分享品牌明细
+function shareBrandDetails(brand) {
+    // 这里可以实现分享功能，例如生成图片或导出数据
+    showNotification('分享功能已触发，品牌: ' + brand);
+    
+    // 简单实现：将品牌明细转换为文本并提示用户复制
+    const records = getIncomeRecords();
+    const currentYear = new Date().getFullYear();
+    const brandRecords = records.filter(record => {
+        const recordYear = new Date(record.date).getFullYear();
+        return record.client === brand && recordYear === currentYear;
+    });
+    
+    let shareText = `${brand} 年度明细\n\n`;
+    
+    // 添加汇总信息
+    let totalAmount = 0;
+    brandRecords.forEach(record => {
+        totalAmount += record.totalAmount;
+    });
+    shareText += `总计: ¥${totalAmount.toFixed(2)}\n\n`;
+    
+    // 添加每条记录的详细信息
+    brandRecords.forEach((record, index) => {
+        shareText += `${index + 1}. ${formatDate(record.date)}\n`;
+        shareText += `   地址: ${record.address} ${record.password ? `密码: ${record.password}` : ''}\n`;
+        shareText += `   金额: ¥${record.totalAmount.toFixed(2)}\n`;
+        shareText += `   项目:\n`;
+        record.items.forEach(item => {
+            shareText += `     - ${item.name}: ${item.length}mm × ${item.height}mm = ${item.area.toFixed(3)}㎡ × ¥${item.unitPrice.toFixed(2)} = ¥${item.subtotal.toFixed(2)}\n`;
+        });
+        if (record.note) {
+            shareText += `   备注: ${record.note}\n`;
+        }
+        shareText += `\n`;
+    });
+    
+    // 创建一个临时文本区域用于复制
+    const textarea = document.createElement('textarea');
+    textarea.value = shareText;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-999999px';
+    textarea.style.top = '-999999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    
+    try {
+        // 复制到剪贴板
+        document.execCommand('copy');
+        showNotification('品牌明细已复制到剪贴板，可直接粘贴分享');
+    } catch (err) {
+        showNotification('复制失败，请手动复制以下内容');
+        // 显示文本供用户手动复制
+        showModal('品牌明细', `<pre style="white-space: pre-wrap;">${shareText}</pre>`, null, null, true);
+    }
+    
+    document.body.removeChild(textarea);
+}
+
+// 分享单条记录
+function shareRecord(id) {
+    const records = getIncomeRecords();
+    const record = records.find(r => r.id === id);
+    
+    if (!record) return;
+    
+    let shareText = `安装记录\n\n`;
+    shareText += `日期: ${formatDate(record.date)}\n`;
+    shareText += `品牌: ${record.client}\n`;
+    shareText += `地址: ${record.address} ${record.password ? `密码: ${record.password}` : ''}\n`;
+    shareText += `总计金额: ¥${record.totalAmount.toFixed(2)}\n\n`;
+    shareText += `安装项目:\n`;
+    
+    record.items.forEach(item => {
+        shareText += `- ${item.name}: ${item.length}mm × ${item.height}mm = ${item.area.toFixed(3)}㎡ × ¥${item.unitPrice.toFixed(2)} = ¥${item.subtotal.toFixed(2)}\n`;
+    });
+    
+    if (record.note) {
+        shareText += `\n备注: ${record.note}`;
+    }
+    
+    // 创建一个临时文本区域用于复制
+    const textarea = document.createElement('textarea');
+    textarea.value = shareText;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-999999px';
+    textarea.style.top = '-999999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    
+    try {
+        // 复制到剪贴板
+        document.execCommand('copy');
+        showNotification('记录已复制到剪贴板，可直接粘贴分享');
+    } catch (err) {
+        showNotification('复制失败，请手动复制以下内容');
+        // 显示文本供用户手动复制
+        showModal('安装记录', `<pre style="white-space: pre-wrap;">${shareText}</pre>`, null, null, true);
+    }
+    
+    document.body.removeChild(textarea);
+}
+
 // 更新统计信息
 function updateStats(records) {
     const totalRecords = records.length;
@@ -610,54 +1378,76 @@ function updateClientSummary(records) {
         clientTotals[record.client].totalAmount += record.totalAmount;
     });
     
-    if (Object.keys(clientTotals).length === 0) {
-        clientSummary.innerHTML = '<div class="empty-state">暂无客户记录</div>';
-        return;
-    }
-    
     // 获取客户结款金额
     const clientPayments = getClientPayments();
     
-    const summaryHtml = Object.entries(clientTotals).map(([client, data]) => {
+    // 计算每个客户的未结金额，并过滤掉未结金额为0的客户
+    const activeClients = Object.entries(clientTotals).map(([client, data]) => {
         const payment = parseFloat(clientPayments[client] || 0);
         const balance = data.totalAmount - payment;
-        
-        return `
+        return {
+            client,
+            ...data,
+            payment,
+            balance
+        };
+    }).filter(client => client.balance > 0) // 只保留未结金额大于0的客户
+      .sort((a, b) => b.balance - a.balance); // 按未结金额从大到小排序
+    
+    if (activeClients.length === 0) {
+        clientSummary.innerHTML = '<div class="empty-state">暂无未结款客户记录</div>';
+        return;
+    }
+    
+    const summaryHtml = activeClients.map(client => `
         <div class="summary-card">
-            <h3>${client}</h3>
-            <div class="summary-info">地址: ${data.address}</div>
-            ${data.password ? `<div class="summary-info">密码: ${data.password}</div>` : ''}
+            <h3>${client.client}</h3>
+            <div class="summary-info">地址: ${client.address}</div>
+            ${client.password ? `<div class="summary-info">密码: ${client.password}</div>` : ''}
             <div class="summary-details">
                 <div class="summary-row">
                     <span class="summary-label">总计金额:</span>
-                    <span class="summary-value">¥${data.totalAmount.toFixed(2)}</span>
+                    <span class="summary-value">¥${client.totalAmount.toFixed(2)}</span>
                 </div>
                 <div class="summary-row">
                     <span class="summary-label">已结金额:</span>
-                    <span class="summary-value">¥${payment.toFixed(2)}</span>
+                    <span class="summary-value">¥${client.payment.toFixed(2)}</span>
                 </div>
                 <div class="summary-row">
                     <span class="summary-label">未结金额:</span>
-                    <span class="summary-value ${balance > 0 ? 'balance-positive' : 'balance-zero'}">¥${balance.toFixed(2)}</span>
+                    <span class="summary-value balance-positive">¥${client.balance.toFixed(2)}</span>
                 </div>
             </div>
             <div class="summary-actions">
-                <button class="btn btn-small btn-edit" onclick="editClientPayment('${client}', ${payment}, ${data.totalAmount})">修改结款</button>
+                <button class="btn btn-small btn-edit" onclick="editClientPayment('${client.client}', ${client.payment}, ${client.totalAmount})">修改结款</button>
             </div>
         </div>
-        `;
-    }).join('');
+        `).join('');
     
     clientSummary.innerHTML = summaryHtml;
 }
 
-// 更新月度支出汇总
-function updateMonthlyExpenses(records) {
+// 更新支出汇总
+function updateExpenseSummary() {
+    const records = getExpenseRecords();
+    const currentYear = new Date().getFullYear();
+    
+    // 筛选今年的记录
+    const thisYearRecords = records.filter(record => {
+        const recordYear = new Date(record.date).getFullYear();
+        return recordYear === currentYear;
+    });
+    
+    // 计算年度支出总计
+    const annualExpenseTotal = thisYearRecords.reduce((sum, record) => sum + record.amount, 0);
+    document.getElementById('annualExpenseTotal').textContent = `¥${annualExpenseTotal.toFixed(2)}`;
+    
+    // 更新月度支出汇总
     const monthlyExpenses = document.getElementById('monthlyExpenses');
     
     // 按月份分组统计
     const monthlyTotals = {};
-    records.forEach(record => {
+    thisYearRecords.forEach(record => {
         const monthKey = record.date.substring(0, 7); // YYYY-MM
         if (!monthlyTotals[monthKey]) {
             monthlyTotals[monthKey] = 0;
@@ -686,15 +1476,52 @@ function updateMonthlyExpenses(records) {
     monthlyExpenses.innerHTML = summaryHtml;
 }
 
+// 切换支出汇总
+function toggleExpenseSummary(initialHide = false) {
+    const container = document.getElementById('expenseSummaryContainer');
+    const btn = document.querySelector('[onclick="toggleExpenseSummary()"]');
+    
+    if (initialHide || container.classList.contains('collapsed')) {
+        container.classList.remove('collapsed');
+        btn.classList.remove('collapsed');
+        btn.textContent = '▼';
+    } else {
+        container.classList.add('collapsed');
+        btn.classList.add('collapsed');
+        btn.textContent = '▶';
+    }
+}
+
 // 其他功能
 
 // 清空所有记录
 function clearAllRecords() {
     if (confirm('确定要清空所有收入和支出记录吗？此操作不可恢复！')) {
-        localStorage.removeItem('incomeRecords');
-        localStorage.removeItem('expenseRecords');
-        loadAllData();
-        showNotification('所有记录已清空');
+        // 显示密码输入框
+        showModal('清空确认', `
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="clearPassword" style="display: block; margin-bottom: 5px; font-weight: bold;">请输入密码:</label>
+                <input type="password" id="clearPassword" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 16px;">
+            </div>
+        `, function() {
+            const password = document.getElementById('clearPassword').value;
+            
+            // 验证密码
+            if (password !== '123456') {
+                showNotification('密码错误，无法清空记录');
+                return;
+            }
+            
+            // 执行清空操作
+            // 使用正确的数据访问函数
+            const userData = getUserData();
+            userData.incomeRecords = [];
+            userData.expenseRecords = [];
+            saveUserData(userData);
+            
+            loadAllData();
+            showNotification('所有记录已清空');
+        });
     }
 }
 
@@ -838,7 +1665,7 @@ function editClientPayment(client, currentPayment, totalAmount) {
         const password = modal.querySelector('#paymentPassword').value;
         
         // 验证密码
-        if (password !== getSystemPassword()) {
+        if (password !== '123456') {
             showNotification('密码错误，无法修改结款金额');
             modalOverlay.remove();
             return;
@@ -899,6 +1726,22 @@ function showNotification(message) {
 
 // 折叠功能
 
+// 切换收入记录表单
+function toggleIncomeForm(initialHide = false) {
+    const container = document.getElementById('incomeFormContainer');
+    const btn = document.querySelector('[onclick="toggleIncomeForm()"]');
+    
+    if (initialHide || container.classList.contains('collapsed')) {
+        container.classList.remove('collapsed');
+        btn.classList.remove('collapsed');
+        btn.textContent = '▼';
+    } else {
+        container.classList.add('collapsed');
+        btn.classList.add('collapsed');
+        btn.textContent = '▶';
+    }
+}
+
 // 切换支出记录表单
 function toggleExpenseForm(initialHide = false) {
     const container = document.getElementById('expenseFormContainer');
@@ -945,6 +1788,65 @@ function toggleExpensesList(initialHide = false) {
         btn.classList.add('collapsed');
         btn.textContent = '▶';
     }
+}
+
+// 切换结款变动日志
+function togglePaymentLogs(initialHide = false) {
+    const container = document.getElementById('paymentLogsContainer');
+    const btn = document.querySelector('[onclick="togglePaymentLogs()"]');
+    
+    if (initialHide || container.classList.contains('collapsed')) {
+        container.classList.remove('collapsed');
+        btn.classList.remove('collapsed');
+        btn.textContent = '▼';
+        // 显示日志内容
+        updatePaymentLogs();
+    } else {
+        container.classList.add('collapsed');
+        btn.classList.add('collapsed');
+        btn.textContent = '▶';
+    }
+}
+
+// 更新结款变动日志显示
+function updatePaymentLogs() {
+    const logsContainer = document.getElementById('paymentLogs');
+    const logs = getPaymentLogs();
+    
+    if (logs.length === 0) {
+        logsContainer.innerHTML = '<div class="empty-state">暂无结款变动记录</div>';
+        return;
+    }
+    
+    const logsHtml = logs.map(log => {
+        const changeClass = log.change > 0 ? 'balance-zero' : log.change < 0 ? 'balance-positive' : '';
+        const changeText = log.change > 0 ? `+¥${log.change.toFixed(2)}` : log.change < 0 ? `-¥${Math.abs(log.change).toFixed(2)}` : '¥0.00';
+        
+        return `
+        <div class="summary-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 16px;">${log.client}</h3>
+                <span style="color: #3498db; font-size: 14px;">${log.date} ${log.time}</span>
+            </div>
+            <div class="summary-details">
+                <div class="summary-row">
+                    <span class="summary-label">旧金额:</span>
+                    <span class="summary-value">¥${log.oldAmount.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">新金额:</span>
+                    <span class="summary-value">¥${log.newAmount.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">变动:</span>
+                    <span class="summary-value ${changeClass}">${changeText}</span>
+                </div>
+            </div>
+        </div>
+        `;
+    }).join('');
+    
+    logsContainer.innerHTML = logsHtml;
 }
 
 // 为记录详情表格添加样式
