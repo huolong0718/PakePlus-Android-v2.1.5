@@ -7,89 +7,203 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
+    <!-- 登录/注册容器 -->
+    <div id="authContainer" class="auth-container">
+        <!-- 登录表单 -->
+        <div id="loginFormContainer" class="auth-form-container">
+            <h1>安装收入记账系统</h1>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">账号:</label>
+                    <input type="text" id="username" placeholder="请输入账号" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">密码:</label>
+                    <input type="password" id="loginPassword" placeholder="请输入密码" required>
+                </div>
+                <div class="form-group remember-me">
+                    <input type="checkbox" id="rememberMe">
+                    <label for="rememberMe">记住密码</label>
+                </div>
+                <button type="submit" class="btn">登录</button>
+            </form>
+            <div class="auth-switch">
+                <p>还没有账号？<a href="#" onclick="switchToRegister()">立即注册</a></p>
+            </div>
+        </div>
+        
+        <!-- 注册表单 -->
+        <div id="registerFormContainer" class="auth-form-container" style="display: none;">
+            <h1>安装收入记账系统</h1>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="registerUsername">账号:</label>
+                    <input type="text" id="registerUsername" placeholder="请输入账号" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerPassword">密码:</label>
+                    <input type="password" id="registerPassword" placeholder="请输入密码" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认密码:</label>
+                    <input type="password" id="confirmPassword" placeholder="请确认密码" required>
+                </div>
+                <button type="submit" class="btn">注册</button>
+            </form>
+            <div class="auth-switch">
+                <p>已有账号？<a href="#" onclick="switchToLogin()">立即登录</a></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主应用内容 -->
+    <div id="appContainer" class="container" style="display: none;">
         <h1>安装收入记账</h1>
         
-        <!-- 客户汇总 -->
+        <!-- 年度总计 -->
         <div class="summary-section">
+            <h2 id="annualSummaryTitle">年度总计</h2>
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-label">年度总计</span>
+                    <span class="stat-value" id="annualTotal">¥0.00</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">年度未结款</span>
+                    <span class="stat-value" id="annualUnpaid">¥0.00</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">年度已结款</span>
+                    <span class="stat-value" id="annualPaid">¥0.00</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 年度品牌汇总 -->
+        <div class="summary-section" id="brandSummarySection" style="display: none;">
+            <h2>
+                品牌汇总 
+                <button class="btn btn-small btn-edit" onclick="showAnnualSummary()" style="float: right; width: auto; font-size: 14px; padding: 5px 10px;">
+                    返回年度总计
+                </button>
+            </h2>
+            <div class="summary-container" id="brandSummary">
+                <!-- 品牌汇总将通过JavaScript动态添加 -->
+            </div>
+        </div>
+        
+        <!-- 店面明细 -->
+        <div class="summary-section" id="storeDetailSection" style="display: none;">
+            <h2>
+                <span id="storeDetailTitle">店面明细</span> 
+                <button class="btn btn-small btn-edit" onclick="showBrandSummary()" style="float: right; width: auto; font-size: 14px; padding: 5px 10px;">
+                    返回品牌汇总
+                </button>
+            </h2>
+            <div class="summary-container" id="storeDetails">
+                <!-- 店面明细将通过JavaScript动态添加 -->
+            </div>
+        </div>
+        
+        <!-- 客户汇总 -->
+        <div class="summary-section" id="clientSummarySection">
             <h2>客户汇总</h2>
             <div class="summary-container" id="clientSummary">
                 <!-- 客户汇总将通过JavaScript动态添加 -->
             </div>
         </div>
         
-        <!-- 记录表单 -->
+        <!-- 记录表单（可折叠） -->
         <div class="form-section">
-            <h2>添加收入记录</h2>
-            <form id="incomeForm">
-                <div class="form-group">
-                    <label for="date">日期:</label>
-                    <input type="date" id="date" required>
-                </div>
-                <div class="form-group">
-                    <label for="client">店面品牌:</label>
-                    <input type="text" id="client" placeholder="请输入店面品牌" required>
-                </div>
-                <div class="form-group">
-                    <label for="address">客户门牌地址:</label>
-                    <input type="text" id="address" placeholder="请输入客户门牌地址" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">开门密码:</label>
-                    <input type="text" id="password" placeholder="请输入开门密码">
-                </div>
-                
-                <!-- 安装项目表格 -->
-                <div class="form-group">
-                    <label>安装项目:</label>
-                    <div class="table-container">
-                        <table id="itemsTable">
-                            <thead>
-                                <tr>
-                                    <th>安装项目</th>
-                                    <th>长(mm)</th>
-                                    <th>高(mm)</th>
-                                    <th>面积(㎡)</th>
-                                    <th>单价(元)</th>
-                                    <th>小计(元)</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- 初始行 -->
-                                <tr class="item-row">
-                                    <td><input type="text" class="item-name" placeholder="请输入项目名称" required></td>
-                                    <td><input type="number" class="length" step="1" placeholder="0" min="0" required></td>
-                                    <td><input type="number" class="height" step="1" placeholder="0" min="0" required></td>
-                                    <td><input type="number" class="area" step="0.001" placeholder="0.000" readonly></td>
-                                    <td><input type="number" class="unit-price" step="0.01" placeholder="0.00" min="0" required></td>
-                                    <td><input type="number" class="subtotal" step="0.01" placeholder="0.00" readonly></td>
-                                    <td><button type="button" class="btn btn-small btn-delete-row">删除</button></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        
-                        <!-- 添加行按钮 -->
-                        <div class="table-actions">
-                            <button type="button" id="addRow" class="btn btn-small btn-edit">添加项目行</button>
+            <div class="collapsible-header">
+                <h2>添加收入记录</h2>
+                <button class="toggle-btn" onclick="toggleIncomeForm()">▼</button>
+            </div>
+            <div id="incomeFormContainer" class="collapsible-content">
+                <form id="incomeForm">
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="date">安装日期:</label>
+                            <input type="date" id="date" required>
                         </div>
-                        
-                        <!-- 总计金额 -->
-                        <div class="total-amount">
-                            <label>总计金额:</label>
-                            <span id="totalAmountInput">¥0.00</span>
-                            <input type="hidden" id="totalAmountHidden" name="totalAmount" value="0">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="client">店面品牌:</label>
+                            <input type="text" id="client" placeholder="请输入店面品牌" required>
                         </div>
                     </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="note">备注:</label>
-                    <textarea id="note" placeholder="请输入备注信息"></textarea>
-                </div>
-                <button type="submit" class="btn">添加记录</button>
-            </form>
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="address">客户门牌地址:</label>
+                            <input type="text" id="address" placeholder="请输入客户门牌地址" required>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="password">开门密码:</label>
+                            <input type="text" id="password" placeholder="请输入开门密码">
+                        </div>
+                    </div>
+                    
+                    <!-- 安装项目表格 -->
+                    <div class="form-group">
+                        <label>安装项目:</label>
+                        <div class="table-container">
+                            <table id="itemsTable">
+                                <thead>
+                                    <tr>
+                                        <th>安装项目</th>
+                                        <th>长(mm)</th>
+                                        <th>高(mm)</th>
+                                        <th>面积(㎡)</th>
+                                        <th>单价(元)</th>
+                                        <th>小计(元)</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- 初始行 -->
+                                    <tr class="item-row" data-type="standard">
+                                        <td><input type="text" class="item-name" placeholder="请输入项目名称" required></td>
+                                        <td><input type="number" class="length" step="1" placeholder="0" min="0" required></td>
+                                        <td><input type="number" class="height" step="1" placeholder="0" min="0" required></td>
+                                        <td><input type="number" class="area" step="0.001" placeholder="0.000" readonly></td>
+                                        <td><input type="number" class="unit-price" step="0.01" placeholder="0.00" min="0" required></td>
+                                        <td><input type="number" class="subtotal" step="0.01" placeholder="0.00" readonly></td>
+                                        <td><button type="button" class="btn btn-small btn-delete-row">删除</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            
+                            <!-- 添加行按钮 -->
+                        <div class="table-actions" style="display: flex; gap: 10px;">
+                            <button type="button" id="addStandardRow" class="btn btn-small btn-edit">添加标准行</button>
+                            <button type="button" id="addManualAreaRow" class="btn btn-small btn-edit">添加手动面积行</button>
+                        </div>
+                            
+                            <!-- 总计金额 -->
+                            <div class="total-amount">
+                                <label>总计金额:</label>
+                                <span id="totalAmountInput">¥0.00</span>
+                                <input type="hidden" id="totalAmountHidden" name="totalAmount" value="0">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="note">备注:</label>
+                        <textarea id="note" placeholder="请输入备注信息"></textarea>
+                    </div>
+                    <button type="submit" class="btn">添加记录</button>
+                </form>
+            </div>
         </div>
+        
+        <style>
+            @media (max-width: 768px) {
+                div[style*="display: flex; gap: 10px;"] {
+                    flex-direction: column;
+                }
+            }
+        </style>
         
         <!-- 支出记录表单 -->
         <div class="form-section">
@@ -139,15 +253,38 @@
             </div>
         </div>
         
-        <!-- 月度支出汇总 -->
+        <!-- 支出汇总 -->
         <div class="summary-section">
             <div class="collapsible-header">
-                <h2>月度支出汇总</h2>
-                <button class="toggle-btn" onclick="toggleMonthlyExpenses()">▼</button>
+                <h2>支出汇总</h2>
+                <button class="toggle-btn" onclick="toggleExpenseSummary()">▼</button>
             </div>
-            <div id="monthlyExpensesContainer" class="collapsible-content">
+            <div id="expenseSummaryContainer" class="collapsible-content">
+                <!-- 年度支出总计 -->
+                <div class="stats" style="margin-bottom: 20px;">
+                    <div class="stat-item">
+                        <span class="stat-label">年度支出总计</span>
+                        <span class="stat-value" id="annualExpenseTotal">¥0.00</span>
+                    </div>
+                </div>
+                
+                <!-- 月度支出汇总 -->
+                <h3 style="color: #34495e; margin-bottom: 15px; font-size: 18px;">月度支出汇总</h3>
                 <div class="summary-container" id="monthlyExpenses">
                     <!-- 月度支出汇总将通过JavaScript动态添加 -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- 结款变动日志 -->
+        <div class="summary-section">
+            <div class="collapsible-header">
+                <h2>结款变动日志</h2>
+                <button class="toggle-btn" onclick="togglePaymentLogs()">▼</button>
+            </div>
+            <div id="paymentLogsContainer" class="collapsible-content">
+                <div class="summary-container" id="paymentLogs">
+                    <!-- 结款变动日志将通过JavaScript动态添加 -->
                 </div>
             </div>
         </div>
